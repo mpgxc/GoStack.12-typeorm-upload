@@ -1,12 +1,14 @@
-import { getRepository } from 'typeorm';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { getRepository, getCustomRepository } from 'typeorm';
 import AppError from '../errors/AppError';
 import Transaction from '../models/Transaction';
+import TransactionRepository from '../repositories/TransactionsRepository';
 import Category from '../models/Category';
 
 interface RequestDTO {
     title: string;
     value: number;
-    type: string;
+    type: 'income' | 'outcome';
     category: string;
 }
 
@@ -17,34 +19,50 @@ class CreateTransactionService {
         type,
         category,
     }: RequestDTO): Promise<Transaction> {
-        const transactionRepository = getRepository(Transaction);
+        const transactionRepository = getCustomRepository(
+            TransactionRepository,
+        );
         const categoryRepository = getRepository(Category);
 
-        const transactionExists = await transactionRepository.findOne({
-            where: { title },
-        });
+        const {
+            total: totalBalance,
+        } = await transactionRepository.getBalance();
+
+        if (type === 'outcome' && value >= totalBalance) {
+            throw new AppError(
+                'O valor de retirada está acima do saldo total!',
+                400,
+            );
+        }
 
         const categoryExists = await categoryRepository.findOne({
             where: { title: category },
         });
 
-        // Caso não exista
-        if (!transactionExists || !categoryExists) {
-            let categoryObj = categoryRepository.create({
+        let category_id;
+
+        // Caso ctegory não exista crie
+        if (!categoryExists) {
+            const categoryObj = categoryRepository.create({
                 title: category,
             });
 
-            categoryObj = await categoryRepository.save(categoryObj);
+            const categoryRef = await categoryRepository.save(categoryObj);
 
-            const transactionObj = transactionRepository.create({
-                title,
-                value,
-                type: 'income',
-                category_id: categoryObj.id,
-            });
-
-            await transactionRepository.save(transactionObj);
+            category_id = categoryRef.id;
+        } else {
+            category_id = categoryExists.id;
         }
+
+        const transactionObj = transactionRepository.create({
+            title,
+            value,
+            type,
+            category_id,
+        });
+
+        await transactionRepository.save(transactionObj);
+        return transactionObj;
     }
 }
 
