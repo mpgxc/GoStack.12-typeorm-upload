@@ -22,6 +22,7 @@ class CreateTransactionService {
         const transactionRepository = getCustomRepository(
             TransactionRepository,
         );
+
         const categoryRepository = getRepository(Category);
 
         const {
@@ -41,7 +42,7 @@ class CreateTransactionService {
 
         let category_id;
 
-        // Caso ctegory não exista crie
+        // Caso category não exista crie...
         if (!categoryExists) {
             const categoryObj = categoryRepository.create({
                 title: category,
